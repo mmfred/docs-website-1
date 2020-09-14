@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { readdir } = require('fs').promises;
+
+const { resolve } = path;
 
 const logger = require('./utils/logger');
 const { BASE_DIR } = require('./constants');
@@ -33,15 +36,29 @@ const getPageContent = (dir, files) =>
     .join('\n');
 
 // TODO: create all links in and nested under this directory
+const getFiles = async (dir) => {
+  const dirents = await readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(
+    dirents.map((dirent) => {
+      const res = resolve(dir, dirent.name);
+      // eslint-disable-next-line no-unused-vars
+      return dirent.isDirectory() ? getFiles(res) : res;
+    })
+  );
+  // console.log(files.flat())
+  return files.flat();
+};
+
 const createIndexPage = (dir) => {
   const title = getTitle(dir);
   const fullDir = path.join(BASE_DIR, dir);
 
-  fs.readdir(fullDir, (err, files) => {
+  fs.readdir(fullDir, async (err, files) => {
     if (err) logger.error(`Unabled to read files for ${dir}.`);
 
     const fileName = `${fullDir}/index.mdx`;
-    const content = getFrontmatter(title) + getPageContent(dir, files);
+    const content =
+      getFrontmatter(title) + getPageContent(fullDir, await getFiles(fullDir));
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
     });
